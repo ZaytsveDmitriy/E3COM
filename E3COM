@@ -1,0 +1,163 @@
+package main
+
+import (
+	"fmt"
+
+	ole "github.com/go-ole/go-ole"
+	"github.com/go-ole/go-ole/oleutil"
+)
+
+type Job struct {
+	object
+}
+
+func castVariantToInt32Arr(variant *ole.VARIANT) (IDs []int32) {
+	IDsVARIANT := variant.ToArray().ToValueArray()
+	len := len(IDsVARIANT)
+	IDs = make([]int32, len-1)
+	if len > 1 {
+		for i := 1; i < len; i++ {
+			IDs[i-1] = IDsVARIANT[i].(int32)
+		}
+	}
+	return IDs
+}
+func (j *Job) CreateSymbolObj() *Symbol {
+	var symbol Symbol
+	object, err := j.obj.CallMethod("CreateSymbolObject")
+	if err != nil {
+		fmt.Println("Function Create not worked fine")
+	}
+	symbol.obj = object.ToIDispatch()
+	return &symbol
+}
+
+func (j *Job) CreateSheetObj() *Sheet {
+	var sheet Sheet
+	object, err := j.obj.CallMethod("CreateSheetObject")
+	if err != nil {
+		fmt.Println("Function Create not worked fine")
+	}
+	sheet.obj = object.ToIDispatch()
+	return &sheet
+}
+
+func (j *Job) GetSelectedSymbolIds() (IDs []int32, cnt int32) {
+	var data ole.VARIANT
+	ole.VariantInit(&data)
+
+	result, err := j.obj.CallMethod("GetSelectedSymbolIds", &data)
+	if err != nil {
+		fmt.Println("Error happened when call GetSelectedSymbolIds")
+	}
+	cnt = result.Value().(int32)
+	IDs = castVariantToInt32Arr(&data)
+	ole.VariantClear(&data)
+	return
+}
+
+func (j *Job) GetTreeSelectedSheetIds() (IDs []int32, cnt int32) {
+	var data ole.VARIANT
+	ole.VariantInit(&data)
+
+	result, err := j.obj.CallMethod("GetTreeSelectedSheetIds", &data)
+	if err != nil {
+		fmt.Println("Error happened when call GetSelectedSymbolIds")
+	}
+	cnt = result.Value().(int32)
+	IDs = castVariantToInt32Arr(&data)
+	ole.VariantClear(&data)
+	return
+}
+
+func (j *Job) GetTreeSelectedSheetIdsByFolder() (IDs []int32, cnt int32) {
+	var data ole.VARIANT
+	ole.VariantInit(&data)
+
+	result, err := j.obj.CallMethod("GetTreeSelectedSheetIdsByFolder", &data)
+	if err != nil {
+		fmt.Println("Error happened when call GetSelectedSymbolIdsByFolder")
+	}
+	cnt = result.Value().(int32)
+	IDs = castVariantToInt32Arr(&data)
+	ole.VariantClear(&data)
+	return
+}
+
+type Symbol struct {
+	object
+}
+
+type Sheet struct {
+	object
+}
+type object struct {
+	obj *ole.IDispatch
+}
+
+func (o *object) SetID(ID int32) {
+	o.obj.CallMethod("SetId", ID)
+}
+
+func (o *object) GetAttributeValue(name string) (value string) {
+	result, err := o.obj.CallMethod("GetAttributeValue", name)
+	if err != nil {
+		fmt.Println("Hooops")
+	}
+	value = result.Value().(string)
+	return value
+}
+
+func (o *object) DisplayAttributeValue(name string) {
+	o.obj.CallMethod("DisplayAttributeValue", name)
+}
+func (o *object) DeleteAttribute(name string) {
+	o.obj.CallMethod("DeleteAttribte", name)
+}
+
+func (o *object) GetHyperlinkTextIds() (IDs []int32, cnt int32) {
+	var data ole.VARIANT
+	ole.VariantInit(&data)
+
+	result, err := o.obj.CallMethod("GetHyperlinkTextIds", &data)
+	if err != nil {
+		fmt.Println("Error happened when call GetHyperlinkTextIds")
+	}
+	cnt = result.Value().(int32)
+	IDs = castVariantToInt32Arr(&data)
+	ole.VariantClear(&data)
+	return
+}
+func main() {
+	ole.CoInitialize(0)
+
+	unknown, _ := oleutil.CreateObject("CT.Application")
+	e3, err := unknown.QueryInterface(ole.IID_IDispatch)
+	if err != nil {
+		fmt.Println("No object was returned")
+	}
+	var job Job
+	job.obj = oleutil.MustCallMethod(e3, "CreateJobObject").ToIDispatch()
+	textIds, cnt := job.GetHyperlinkTextIds()
+	sheetIDsByFolder, sheetCnt := job.GetTreeSelectedSheetIdsByFolder()
+	fmt.Println(sheetCnt, sheetIDsByFolder)
+	symbol := job.CreateSymbolObj()
+	fmt.Println(symbol)
+	symbolIds, symbolCnt := job.GetSelectedSymbolIds()
+	fmt.Println(textIds, cnt)
+	fmt.Println(symbolIds, symbolCnt)
+	fmt.Println("OK")
+	if err != nil {
+		fmt.Println("Что то пошло не так")
+		fmt.Println(err)
+	}
+	sheetIds, sheetCnt := job.GetTreeSelectedSheetIds()
+	fmt.Println(sheetIds, sheetCnt)
+	result := ""
+	sheet := job.CreateSheetObj()
+	sheet.SetID(sheetIDsByFolder[0])
+	fmt.Println(sheet.GetAttributeValue("Name (2)"))
+	fmt.Scan(&result)
+
+	e3.Release()
+}
